@@ -1,0 +1,267 @@
+version: "3.3"
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  config: {}
+  logs: {}
+  data: {}
+  app_backups: {}
+  config_backups: {}
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:15.11.9-ce.0
+    container_name: gitlab
+    restart: always
+    networks:
+      - traefik
+    ports:
+      - '10022:22'
+    expose:
+      - "80"
+      - "5005"
+      - '9168' # gitlab_monitor
+      - '9236' # gitaly prometheus
+      - '9121' # redis_exporter
+      - '9187' # postgres_exporter
+      - '8083' # puma_exporter
+      - '8082' # sidekiq prometheus
+      - '9229' # workhorse prometheus
+    # env_file: ./.env
+    environment:
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      GITLAB_OMNIBUS_CONFIG: |
+        ## GitLab configuration settings
+        ##! Check out the latest version of this file to know about the different
+        ##! settings that can be configured by this file, which may be found at:
+        ##! https://gitlab.com/gitlab-org/omnibus-gitlab/raw/master/files/gitlab-config-template/gitlab.rb.template
+
+        ## GitLab URL
+        ##! URL on which GitLab will be reachable.
+        ##! For more details on configuring external_url see:
+        ##! https://docs.gitlab.com/omnibus/settings/configuration.html#configuring-the-external-url-for-gitlab
+        external_url 'https://gitlab.example.com'
+
+        ################################################################################
+        ## gitlab.yml configuration
+        ##! Docs: https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/doc/settings/gitlab.yml.md
+        ################################################################################
+        # gitlab_rails['gitlab_ssh_host'] = 'ssh.host_example.com'
+        # gitlab_rails['gitlab_ssh_user'] = ''
+        gitlab_rails['time_zone'] = 'UTC'
+                
+        ### GitLab email server settings
+        ###! Docs: https://docs.gitlab.com/omnibus/settings/smtp.html
+        ###! **Use smtp instead of sendmail/postfix.**        
+        gitlab_rails['smtp_enable'] = true
+        gitlab_rails['smtp_address'] = "smtp.gmail.com"
+        gitlab_rails['smtp_port'] = 587
+        gitlab_rails['smtp_user_name'] = "user@gmail.com"
+        gitlab_rails['smtp_password'] = ENV['SMTP_PASSWORD']
+        gitlab_rails['smtp_domain'] = "smtp.gmail.com"
+        gitlab_rails['smtp_authentication'] = "login"
+        gitlab_rails['smtp_enable_starttls_auto'] = true
+        gitlab_rails['smtp_tls'] = false
+        gitlab_rails['smtp_pool'] = false       
+        
+        ###! **Can be: 'none', 'peer', 'client_once', 'fail_if_no_peer_cert'**
+        ###! Docs: http://api.rubyonrails.org/classes/ActionMailer/Base.html
+        gitlab_rails['smtp_openssl_verify_mode'] = "peer" 
+
+        # gitlab_rails['smtp_ca_path'] = "/etc/ssl/certs"
+        # gitlab_rails['smtp_ca_file'] = "/etc/ssl/certs/ca-certificates.crt"
+
+        ### Email Settings
+
+        gitlab_rails['gitlab_email_enabled'] = true
+
+        ##! If your SMTP server does not like the default 'From: gitlab@gitlab.example.com'
+        ##! can change the 'From' with this setting.
+        gitlab_rails['gitlab_email_from'] = 'noreply@example.com'
+        gitlab_rails['gitlab_email_display_name'] = 'GitLab'
+        gitlab_rails['gitlab_email_reply_to'] = 'noreply@example.com'
+        # gitlab_rails['gitlab_email_subject_suffix'] = ''
+        # gitlab_rails['gitlab_email_smime_enabled'] = false
+        # gitlab_rails['gitlab_email_smime_key_file'] = '/etc/gitlab/ssl/gitlab_smime.key'
+        # gitlab_rails['gitlab_email_smime_cert_file'] = '/etc/gitlab/ssl/gitlab_smime.crt'
+        # gitlab_rails['gitlab_email_smime_ca_certs_file'] = '/etc/gitlab/ssl/gitlab_smime_cas.crt'
+
+        ### Default project feature settings
+        gitlab_rails['gitlab_default_projects_features_issues'] = true
+        gitlab_rails['gitlab_default_projects_features_merge_requests'] = true
+        gitlab_rails['gitlab_default_projects_features_wiki'] = true
+        gitlab_rails['gitlab_default_projects_features_snippets'] = true
+        gitlab_rails['gitlab_default_projects_features_builds'] = true
+        gitlab_rails['gitlab_default_projects_features_container_registry'] = true
+
+        ### Monitoring settings
+        ###! IP whitelist controlling access to monitoring endpoints
+        gitlab_rails['monitoring_whitelist'] = ['127.0.0.0/8', '::1/128', '172.18.0.15', '172.18.0.16']
+
+        ################################################################################
+        ## GitLab Nginx
+        ##! Docs: https://docs.gitlab.com/omnibus/settings/nginx.html
+        ################################################################################
+
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        nginx['proxy_set_headers'] = {
+          "X-Forwarded-Proto" => "https",
+          "X-Forwarded-Ssl" => "on"
+        }
+
+        ################################################################################
+        ## Container Registry settings
+        ##! Docs: https://docs.gitlab.com/ce/administration/container_registry.html
+        ################################################################################
+        
+        registry_external_url 'https://registry.example.com:'
+
+        ### Settings used by GitLab application
+        # gitlab_rails['registry_enabled'] = true
+        # gitlab_rails['registry_host'] = "registry.example.com"
+        # gitlab_rails['registry_port'] = "5005"
+        # gitlab_rails['registry_path'] = "/var/opt/gitlab/gitlab-rails/shared/registry"
+
+        ################################################################################
+        ## Registry NGINX
+        ################################################################################
+
+        registry_nginx['listen_port'] = 80
+        registry_nginx['listen_https'] = false
+        registry_nginx['proxy_set_headers'] = {
+          "X-Forwarded-Proto" => "https",
+          "X-Forwarded-Ssl" => "on"
+        }
+
+        ################################################################################
+        ## Prometheus
+        ##! Docs: https://docs.gitlab.com/ee/administration/monitoring/prometheus/
+        ################################################################################
+
+        prometheus['enable'] = false
+        prometheus['listen_address'] = '0.0.0.0:9090'
+        
+        ################################################################################
+        ## Prometheus Redis exporter
+        ##! Docs: https://docs.gitlab.com/ee/administration/monitoring/prometheus/redis_exporter.html
+        ################################################################################
+
+        redis_exporter['enable'] = true
+        redis_exporter['listen_address'] = '0.0.0.0:9121'
+
+        ################################################################################
+        ## Prometheus Postgres exporter
+        ##! Docs: https://docs.gitlab.com/ee/administration/monitoring/prometheus/postgres_exporter.html
+        ################################################################################
+        postgres_exporter['enable'] = true
+        postgres_exporter['listen_address'] = '0.0.0.0:9187'
+
+        ################################################################################
+        ## Prometheus Gitlab exporter
+        ##! Docs: https://docs.gitlab.com/ee/administration/monitoring/prometheus/gitlab_exporter.html
+        ################################################################################
+
+
+        gitlab_exporter['enable'] = true
+        gitlab_exporter['log_directory'] = "/var/log/gitlab/gitlab-exporter"
+        gitlab_exporter['home'] = "/var/opt/gitlab/gitlab-exporter"
+
+        ##! Advanced settings. Should be changed only if absolutely needed.
+        gitlab_exporter['listen_address'] = '0.0.0.0'
+        gitlab_exporter['listen_port'] = '9168'
+
+        ##! TLS settings.
+        gitlab_exporter['tls_enabled'] = false
+
+        ##! Prometheus scrape related configs
+        gitlab_exporter['prometheus_scrape_scheme'] = 'http'
+        gitlab_exporter['prometheus_scrape_tls_server_name'] = 'localhost'
+        gitlab_exporter['prometheus_scrape_tls_skip_verification'] = false
+
+        # To completely disable prometheus, and all of it's exporters, set to false
+        prometheus_monitoring['enable'] = false
+
+        ################################################################################
+        ## Gitaly
+        ##! Docs:
+        ################################################################################
+        gitaly['prometheus_listen_addr'] = "0.0.0.0:9236"
+
+        ################################################################################
+        ## GitLab Puma
+        ##! Tweak puma settings.
+        ##! Docs: https://docs.gitlab.com/ee/administration/operations/puma.html
+        ################################################################################
+        puma['exporter_enabled'] = true
+        puma['exporter_address'] = "0.0.0.0"
+        puma['exporter_port'] = 8083
+
+        ################################################################################
+        ## GitLab Sidekiq
+        ################################################################################
+        sidekiq['metrics_enabled'] = true
+        sidekiq['listen_address'] = "0.0.0.0"
+        sidekiq['listen_port'] = 8082
+
+        ################################################################################
+        ## GitLab Workhorse
+        ##! Docs: https://gitlab.com/gitlab-org/gitlab/-/blob/master/workhorse/README.md
+        ################################################################################
+        gitlab_workhorse['prometheus_listen_addr'] = "0.0.0.0:9229"
+
+        gitlab_rails['ldap_servers'] = {
+          'main' => {
+            'bind_dn' => 'admin',
+            'password' => '123'
+          }
+        }
+        ################################################################################
+        ## Backup Settings
+        ##! Docs: https://docs.gitlab.com/omnibus/settings/backups.html
+        ################################################################################
+        gitlab_rails['manage_backup_path'] = true
+        # gitlab_rails['backup_path'] = "/var/opt/gitlab/backups"
+        gitlab_rails['backup_path'] = "/mnt/app_backups"
+
+        ###! Docs: https://docs.gitlab.com/ee/raketasks/backup_restore.html#backup-archive-permissions
+        gitlab_rails['backup_archive_permissions'] = 0644
+
+        gitlab_rails['backup_pg_schema'] = 'public'
+
+        ###! The duration in seconds to keep backups before they are allowed to be deleted
+        gitlab_rails['backup_keep_time'] = 604800
+
+    volumes:
+      - config:/etc/gitlab
+      - logs:/var/log/gitlab
+      - data:/var/opt/gitlab
+      - app_backups:/mnt/app_backups
+      - config_backups:/mnt/config_backups
+    labels:
+      # Dynamic configuration with Docker Labels
+      # Ref: https://docs.traefik.io/reference/dynamic-configuration/docker/
+      # Explicitly tell Traefik to expose this container
+      - "traefik.enable=true"
+      # The domain the service will respond to
+      - "traefik.http.routers.gitlab-web-router.rule=Host(`gitlab.example.com`)"
+      # Allow request only from the predefined entry point named "web" http port
+      - "traefik.http.routers.gitlab-web-router.entrypoints=web"
+      # Set the service parameter on the router.
+      - "traefik.http.routers.gitlab-web-router.service=gitlab-web-service"
+      # Forwarding requests to more than one port on a container requires referencing the 
+      # service loadbalancer port definition using the service parameter on the router.
+      - "traefik.http.services.gitlab-web-service.loadbalancer.server.port=80"
+
+      # The domain the service will respond to
+      - "traefik.http.routers.gitlab-registry-web-router.rule=Host(`registry.example.com`)"
+      # Allow request only from the predefined entry point named "web" http port
+      - "traefik.http.routers.gitlab-registry-web-router.entrypoints=web"
+      # Set the service parameter on the router.    
+      - "traefik.http.routers.gitlab-registry-web-router.service=gitlab-registry-web-service"
+      # Forwarding requests to more than one port on a container requires referencing the 
+      # service loadbalancer port definition using the service parameter on the router.
+      - "traefik.http.services.gitlab-registry-web-service.loadbalancer.server.port=80"
