@@ -5,11 +5,16 @@ networks:
     external: true
 
 volumes:
-  config: {}
-  logs: {}
-  data: {}
-  app_backups: {}
-  config_backups: {}
+  gitlab_config:
+    name: gitlab_config
+  gitlab_logs:
+    name: gitlab_logs
+  gitlab_data:
+    name: gitlab_data
+  gitlab_app_backups:
+    name: gitlab_app_backups
+  gitlab_config_backups:
+    name: gitlab_config_backups
 
 services:
   gitlab:
@@ -236,11 +241,11 @@ services:
         gitlab_rails['backup_keep_time'] = 604800
 
     volumes:
-      - config:/etc/gitlab
-      - logs:/var/log/gitlab
-      - data:/var/opt/gitlab
-      - app_backups:/mnt/app_backups
-      - config_backups:/mnt/config_backups
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+      - gitlab_app_backups:/mnt/app_backups
+      - gitlab_config_backups:/mnt/config_backups
     labels:
       # Dynamic configuration with Docker Labels
       # Ref: https://docs.traefik.io/reference/dynamic-configuration/docker/

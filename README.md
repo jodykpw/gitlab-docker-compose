@@ -58,7 +58,7 @@ This guide will walk you through the steps to set up GitLab using Docker Compose
 4. 🚀  Deploy:
 
     ```bash
-    docker-compose -p <project-name> --env-file ./secrets.env -f <docker-compose-filename> up -d
+    docker-compose --env-file ./secrets.env -f docker-compose-prod.yml up -d
     ```
 
 ## 📄 License
